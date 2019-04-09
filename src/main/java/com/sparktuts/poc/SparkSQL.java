@@ -10,6 +10,7 @@ import org.apache.spark.sql.types.Metadata;
 import org.apache.spark.sql.types.StructField;
 import org.apache.spark.sql.types.StructType;
 
+import javax.xml.crypto.Data;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -56,22 +57,52 @@ public class SparkSQL {
 
 
         // In memory data loading
+//
+//        List<Row> inMemory = new ArrayList<Row>();
+//        inMemory.add(RowFactory.create("WARN", "2016-12-31 04:19:32"));
+//        inMemory.add(RowFactory.create("FATAL", "2016-12-31 03:22:34"));
+//        inMemory.add(RowFactory.create("WARN", "2016-12-31 03:21:21"));
+//        inMemory.add(RowFactory.create("INFO", "2015-4-21 14:32:21"));
+//        inMemory.add(RowFactory.create("FATAL","2015-4-21 19:23:20"));
+//
+//        StructField[] fields = new StructField[] {
+//                new StructField("level", DataTypes.StringType, false, Metadata.empty()),
+//                new StructField("datetime", DataTypes.StringType, false, Metadata.empty())
+//        };
+//
+//        StructType schema = new StructType(fields);
+//        Dataset<Row> logDataset = spark.createDataFrame(inMemory, schema);
 
-        List<Row> inMemory = new ArrayList<Row>();
-        inMemory.add(RowFactory.create("WARN", "2016-12-31 04:19:32"));
-        inMemory.add(RowFactory.create("FATAL", "2016-12-31 03:22:34"));
-        inMemory.add(RowFactory.create("WARN", "2016-12-31 03:21:21"));
-        inMemory.add(RowFactory.create("INFO", "2015-4-21 14:32:21"));
-        inMemory.add(RowFactory.create("FATAL","2015-4-21 19:23:20"));
+        Dataset<Row> logDataset = spark.read().option("header", true).csv("src/main/resources/biglog.txt");
 
-        StructField[] fields = new StructField[] {
-                new StructField("level", DataTypes.StringType, false, Metadata.empty()),
-                new StructField("datetime", DataTypes.StringType, false, Metadata.empty())
-        };
+        logDataset.createOrReplaceTempView("logging_table");
 
-        StructType schema = new StructType(fields);
-        Dataset<Row> logDataset = spark.createDataFrame(inMemory, schema);
-        logDataset.show();
+        Dataset<Row> groupedLogs = spark.sql("select level, date_format(datetime, 'MMMM') as month from logging_table");
+
+//        groupedLogs.show();
+
+
+        Dataset<Row> orderByMonth = spark.sql("select level, date_format(datetime, 'MMMM') as month, " +
+                                              "cast(first(date_format(datetime, 'M')) as int) as monthnum, count(1) as total from logging_table " +
+                                              "group by level, month order by monthnum, level");
+
+        orderByMonth = orderByMonth.drop("monthnum");
+
+        orderByMonth.show(100);
+
+//
+//        groupedLogs.createOrReplaceTempView("logging_table");
+//
+//        Dataset<Row> levelPerMonth = spark.sql("select level, month, count(1) as total from logging_table group by level, month order by month");
+//
+//        levelPerMonth.show();
+
+//        levelPerMonth.createOrReplaceTempView("results_table");
+//
+//        Dataset<Row> totalCount = spark.sql("select sum(total) from results_table");
+//
+//        totalCount.show();
+
 
 
         spark.close();
